@@ -1,0 +1,77 @@
+import os
+import time
+from flask import Flask, request
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
+
+app = Flask(__name__)
+
+def fetch_code_response(url):
+    # Extract the code from the URL
+    code = url.split("code=")[1].split("&")[0]
+    return code
+
+def automate_login():
+    # Replace these with your actual login credentials
+    username = "odiuser"
+    password = "bcone1234"
+
+    url_to_login = "https://alinhana10.bcone.com:1444/sap/bc/sec/oauth2/authorize?response_type=code&client_id=oauth2&state=anystate&scope=ZAPI_OUTBOUND_DELIVERY_SRV_0001&redirect_uri=https://oauth.pstmn.io/v1/callback"
+
+    # Set up the browser and navigate to the login page
+    browser = webdriver.Chrome()
+    try:
+        browser.get(url_to_login)
+        username_input = WebDriverWait(browser, 20).until(EC.presence_of_element_located((By.XPATH, '//*[@id="USERNAME_FIELD-inner"]')))
+        password_input = browser.find_element(By.XPATH, '//*[@id="PASSWORD_FIELD-inner"]')
+
+        # Find the login form element
+        login_form = WebDriverWait(browser, 20).until(EC.presence_of_element_located((By.XPATH, '//*[@id="LOGIN_FORM"]')))
+
+        username_input.send_keys(username)
+        password_input.send_keys(password)
+
+        # Click the login button
+        login_form.submit()
+
+        # Wait for the new page to load after login
+        WebDriverWait(browser, 20).until(EC.url_contains("https://alinhana10.bcone.com:1444/sap/bc/sec/oauth2/authorize/index.html"))
+
+        # Click the "Allow" button using ActionChains
+        allow_button = WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="idButtonAccept"]')))
+        actions = ActionChains(browser)
+        actions.click(allow_button).perform()
+
+        WebDriverWait(browser, 20).until(EC.url_contains("https://oauth.pstmn.io/v1/callback?code="))
+
+        # Fetch the code response from the URL
+        code_response_url = browser.current_url
+        code = fetch_code_response(code_response_url)
+        if code:
+            return code
+
+    except Exception as e:
+        print("An error occurred:", str(e))
+
+    finally:
+        # Close the browser regardless of code presence
+        browser.quit()
+
+@app.route('/login', methods=['POST'])
+def login_endpoint():
+    try:
+        code = automate_login()
+        if code:
+            response_message = f"Authorization code : {code}"
+            return response_message, 200
+        else:
+            return "Login process failed.", 500
+    except Exception as e:
+        return str(e), 500
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=1443)
+    
